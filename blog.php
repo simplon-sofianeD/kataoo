@@ -45,7 +45,8 @@ class BlogJsonLoader implements IBlogLoader
  * id / title / content / date / authorId / firstname / lastname
  */
 class BlogCSVLoader extends BlogJsonLoader{
- public function load(String $path): array{
+public function load(String $path): array {
+
      $rawCsv = file_get_contents('blog.csv', "r");
      $Csv = array_map("str_getcsv", preg_split('/\r*\n+|\r+/', $rawCsv));
 
@@ -65,7 +66,7 @@ class BlogCSVLoader extends BlogJsonLoader{
                     );
                     return $article;
                     }, $cleanData);
-     $articleReady = array_map(function ($article){         
+     $articles = array_map(function ($article){         
                 $auteur = new Author($article->id, $article->firstname, $article->lastname);
                 return new Article(
                 $article->id, $article->title,
@@ -73,7 +74,8 @@ class BlogCSVLoader extends BlogJsonLoader{
                 new DateTime($article->date)
                 );
                 }, $articleUncompleted);
-                return $articleReady;
+                var_dump($articles);
+                return $articles;
 
  }
 }
@@ -86,10 +88,42 @@ class BlogDBLoader implements IBlogLoader{
     /**
      * @param $dbname
      */
+
     function load(String $path):array
     {
         // TODO: Implement load() method.
-        
+     $DB_host = "localhost";
+     $DB_user = "root";
+     $DB_pass = "294912kbok@";
+     $DB_name = $path; 
+     try
+    {
+      $connexion = new PDO("mysql:host={$DB_host};dbname={$DB_name}",$DB_user,$DB_pass);
+    } catch (Exception $excp) {
+      die('Erreur : '.$excp->getMessage());
+    } 
+    
+    $getArticles = $connexion->prepare('SELECT id, title, content, authorId, date from articles');
+    $getArticles->execute();
+    $data = $getArticles->fetchall();
+    $getAuthors = $connexion->prepare('SELECT id, firstname, lastname from authors');
+    $getAuthors->execute();
+    $dataAuthors = $getAuthors->fetchall();
+    $articles = array_map(function($article) use($connexion){       
+    $findAuthor =$connexion->prepare('SELECT id, firstname, lastname from authors WHERE '.$article["authorId"].' = id');
+    $findAuthor->execute();
+    $dataFound = $findAuthor->fetch();
+    $authorFound = new Author($dataFound['id'], $dataFound['firstname'], $dataFound['lastname']);
+    $article = new Article($article["id"], $article["title"],
+                $article["content"], $authorFound,
+    new DateTime($article['date']));
+    return $article;
+    },$data);
+    // var_dump($articles);
+    return $articles;
+      
+    
+    
           
     }
 }
@@ -290,7 +324,6 @@ $loader = new BlogJsonLoader();
 // ou $loader = new BlogDBLoader();
 
 $articles = $loader->load('blog.json');
-
 $blog = new Blog('Vive la POO', $articles);
 //echo $blog->displayHeader();
 
