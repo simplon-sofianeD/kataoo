@@ -7,24 +7,15 @@ class BlogJsonLoader implements IBlogLoader
      * @return array
      */
     public function load(String $path): array
-    {
-        $rawData = file_get_contents($path);
-        return $this->parse($rawData);
-    }
+    { 
+        
+        $rawAuthors = json_decode(file_get_contents($path), true)['authors'];
 
-    /**
-     * parse les données JSON et renvoie une liste d'articles
-     * @param String $rawData donnees json_decodées
-     * @return array
-     */
-    public function parse(String $rawData):array{
-        $rawAuthors = $rawData['authors'];
         $authors = array_map(function ($rawAuthor) {
             return new Author($rawAuthor['id'], $rawAuthor['firstname'], $rawAuthor['lastname']);
         }, $rawAuthors);
 
-        $rawArticles = $rawData['articles'];
-
+        $rawArticles = json_decode(file_get_contents($path), true)['articles'];   
         // pour chaque rawArticle on veut récup une instance de Article
         $articles = array_map(function ($rawArticle) use($authors){
 
@@ -32,7 +23,7 @@ class BlogJsonLoader implements IBlogLoader
 
             $articleAuthors = array_filter(
                 $authors,function($author) use($articleAuthorId){
-                return $author->id == $articleAuthorId;
+                    return $author->id == $articleAuthorId;
             });
 
             $articleAuthor = current($articleAuthors);
@@ -54,7 +45,37 @@ class BlogJsonLoader implements IBlogLoader
  * id / title / content / date / authorId / firstname / lastname
  */
 class BlogCSVLoader extends BlogJsonLoader{
+ public function load(String $path): array{
+     $rawCsv = file_get_contents('blog.csv', "r");
+     $Csv = array_map("str_getcsv", preg_split('/\r*\n+|\r+/', $rawCsv));
 
+     $rawDataArticle = array_slice($Csv,1);
+     $cleanData = array_filter($rawDataArticle,function($rawData){
+               return $rawData[0] !== null;
+                });
+     $articleUncompleted = array_map(function($param) use($Csv){ 
+                       $article =   (object) array(
+                       $Csv[0][0] => $param[0],
+                       $Csv[0][1] => $param[1],
+                       $Csv[0][2] => $param[2],
+                       $Csv[0][3] => $param[3],
+                       $Csv[0][4] => $param[4],
+                       $Csv[0][5] => $param[5],
+                       $Csv[0][6] => $param[6]
+                    );
+                    return $article;
+                    }, $cleanData);
+     $articleReady = array_map(function ($article){         
+                $auteur = new Author($article->id, $article->firstname, $article->lastname);
+                return new Article(
+                $article->id, $article->title,
+                $article->content, $auteur,
+                new DateTime($article->date)
+                );
+                }, $articleUncompleted);
+                return $articleReady;
+
+ }
 }
 
 /**
@@ -68,6 +89,8 @@ class BlogDBLoader implements IBlogLoader{
     function load(String $path):array
     {
         // TODO: Implement load() method.
+        
+          
     }
 }
 
@@ -262,8 +285,6 @@ class ViewHelper
         return "<".ViewHelper::FOOTER." ><h3>".$text."</h3></>";
     }
 }
-
-
 $loader = new BlogJsonLoader();
 // ou $loader = new BlogCSVLoader();
 // ou $loader = new BlogDBLoader();
@@ -272,6 +293,7 @@ $articles = $loader->load('blog.json');
 
 $blog = new Blog('Vive la POO', $articles);
 //echo $blog->displayHeader();
+
 ?>
 
 <!doctype html>
