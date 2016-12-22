@@ -7,7 +7,7 @@ class BlogJsonLoader implements IBlogLoader
      * @return array
      */
     public function load(String $path): array
-    { 
+    {
         
         $rawAuthors = json_decode(file_get_contents($path), true)['authors'];
 
@@ -15,25 +15,25 @@ class BlogJsonLoader implements IBlogLoader
             return new Author($rawAuthor['id'], $rawAuthor['firstname'], $rawAuthor['lastname']);
         }, $rawAuthors);
 
-        $rawArticles = json_decode(file_get_contents($path), true)['articles'];   
+        $rawArticles = json_decode(file_get_contents($path), true)['articles'];
         // pour chaque rawArticle on veut récup une instance de Article
-        $articles = array_map(function ($rawArticle) use($authors){
+        $articles = array_map(function ($rawArticle) use ($authors) {
 
             $articleAuthorId = $rawArticle["authorId"];
 
             $articleAuthors = array_filter(
-                $authors,function($author) use($articleAuthorId){
+                $authors, function ($author) use ($articleAuthorId) {
                     return $author->id == $articleAuthorId;
-            });
+                });
 
             $articleAuthor = current($articleAuthors);
-
             return new Article(
                 $rawArticle["id"], $rawArticle["title"],
                 $rawArticle["content"], $articleAuthor,
                 new DateTime($rawArticle['date'])
             );
         }, $rawArticles);
+        var_dump($articles);
         return $articles;
     }
 }
@@ -44,46 +44,29 @@ class BlogJsonLoader implements IBlogLoader
  * Class BlogCSVLoader charge les articles depuis fichier csv
  * id / title / content / date / authorId / firstname / lastname
  */
-class BlogCSVLoader extends BlogJsonLoader{
-public function load(String $path): array {
+class BlogCSVLoader extends BlogJsonLoader
+{
+    public function load(String $path): array
+    {
 
-     $rawCsv = file_get_contents('blog.csv', "r");
-     $Csv = array_map("str_getcsv", preg_split('/\r*\n+|\r+/', $rawCsv));
+         $rawCsv = file_get_contents('blog.csv', "r");
+         $Csv = array_map("str_getcsv", preg_split('/\r*\n+|\r+/', $rawCsv));
 
-     $rawDataArticle = array_slice($Csv,1);
-     $cleanData = array_filter($rawDataArticle,function($rawData){
-               return $rawData[0] !== null;
-                });
-     $articleUncompleted = array_map(function($param) use($Csv){ 
-                       $article =   (object) array(
-                       $Csv[0][0] => $param[0],
-                       $Csv[0][1] => $param[1],
-                       $Csv[0][2] => $param[2],
-                       $Csv[0][3] => $param[3],
-                       $Csv[0][4] => $param[4],
-                       $Csv[0][5] => $param[5],
-                       $Csv[0][6] => $param[6]
-                    );
+         $rawDataArticle = array_slice($Csv, 1); 
+             $articlescompleted = array_map(function ($articlecompleted) use ($Csv) {
+                     $author =  new Author($articlecompleted[3], $articlecompleted[5], $articlecompleted[6]);
+                     $article = new Article($articlecompleted[0], $articlecompleted[1], $articlecompleted[2], $author, new DateTime($articlecompleted[4]));
                     return $article;
-                    }, $cleanData);
-     $articles = array_map(function ($article){         
-                $auteur = new Author($article->id, $article->firstname, $article->lastname);
-                return new Article(
-                $article->id, $article->title,
-                $article->content, $auteur,
-                new DateTime($article->date)
-                );
-                }, $articleUncompleted);
-                var_dump($articles);
-                return $articles;
-
- }
+             }, $rawDataArticle);
+                return $articlescompleted;
+    }
 }
 
 /**
  * Class BlogDBLoader charge les articles depuis une base de données
  */
-class BlogDBLoader implements IBlogLoader{
+class BlogDBLoader implements IBlogLoader
+{
 
     /**
      * @param $dbname
@@ -92,43 +75,36 @@ class BlogDBLoader implements IBlogLoader{
     function load(String $path):array
     {
         // TODO: Implement load() method.
-     $DB_host = "localhost";
-     $DB_user = "root";
-     $DB_pass = "294912kbok@";
-     $DB_name = $path; 
-     try
-    {
-      $connexion = new PDO("mysql:host={$DB_host};dbname={$DB_name}",$DB_user,$DB_pass);
-    } catch (Exception $excp) {
-      die('Erreur : '.$excp->getMessage());
-    } 
+        $DB_host = "localhost";
+        $DB_user = "root";
+        $DB_pass = "294912kbok@";
+        $DB_name = $path;
+        try {
+            $connexion = new PDO("mysql:host={$DB_host};dbname={$DB_name}", $DB_user, $DB_pass);
+        } catch (Exception $excp) {
+             die('Erreur : '.$excp->getMessage());
+        }
     
-    $getArticles = $connexion->prepare('SELECT id, title, content, authorId, date from articles');
-    $getArticles->execute();
-    $data = $getArticles->fetchall();
-    $getAuthors = $connexion->prepare('SELECT id, firstname, lastname from authors');
-    $getAuthors->execute();
-    $dataAuthors = $getAuthors->fetchall();
-    $articles = array_map(function($article) use($connexion){       
-    $findAuthor =$connexion->prepare('SELECT id, firstname, lastname from authors WHERE '.$article["authorId"].' = id');
-    $findAuthor->execute();
-    $dataFound = $findAuthor->fetch();
-    $authorFound = new Author($dataFound['id'], $dataFound['firstname'], $dataFound['lastname']);
-    $article = new Article($article["id"], $article["title"],
+        $getArticles = $connexion->prepare('SELECT id, title, content, authorId, date from articles');
+        $getArticles->execute();
+        $data = $getArticles->fetchall();
+        $articles = array_map(function ($article) use ($connexion) {
+            $findAuthor =$connexion->prepare('SELECT id, firstname, lastname from authors WHERE '.$article["authorId"].' = id');
+            $findAuthor->execute();
+            $dataFound = $findAuthor->fetch();
+            $authorFound = new Author($dataFound['id'], $dataFound['firstname'], $dataFound['lastname']);
+            $article = new Article($article["id"], $article["title"],
                 $article["content"], $authorFound,
-    new DateTime($article['date']));
-    return $article;
-    },$data);
-    // var_dump($articles);
-    return $articles;
-      
-    
-    
-          
+            new DateTime($article['date']));
+            return $article;
+        }, $data);
+    //var_dump($articles);
+        return $articles;
     }
 }
 
-interface IBlogLoader{
+interface IBlogLoader
+{
     /**
      * @param String $path
      * @return array Article
@@ -261,7 +237,7 @@ class Blog
     {
         // <a href="SELF?articleId=Y">article->title</a>
 
-        $articleLinks = array_map(function($article){
+        $articleLinks = array_map(function ($article) {
             return "<a href=\"".$_SERVER['PHP_SELF']."?articleId="
                 .$article->id."\">$article->title</a>";
         }, $this->articles);
@@ -277,7 +253,7 @@ class Blog
     public function displayArticle(int $articleId): String
     {
         $selectedArticle = current( array_filter( $this->articles,
-            function($article) use($articleId) {
+            function ($article) use ($articleId) {
                 return $article->id == $articleId;
             }));
         $renderer = new ArticleRenderer($selectedArticle);
@@ -311,19 +287,21 @@ class ViewHelper
         $this->defaultClass = $this->defaultClass;
     }
 
-    static public function p($text){
+    public static function p($text)
+    {
         return '<p>'.$text.'</p>';
     }
 
-    static public function footer($text){
+    public static function footer($text)
+    {
         return "<".ViewHelper::FOOTER." ><h3>".$text."</h3></>";
     }
 }
-$loader = new BlogJsonLoader();
+$loader = new BlogDBLoader();
 // ou $loader = new BlogCSVLoader();
 // ou $loader = new BlogDBLoader();
 
-$articles = $loader->load('blog.json');
+$articles = $loader->load('blogloader');
 $blog = new Blog('Vive la POO', $articles);
 //echo $blog->displayHeader();
 
